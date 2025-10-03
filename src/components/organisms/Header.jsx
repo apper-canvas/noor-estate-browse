@@ -1,13 +1,42 @@
-import { useState } from "react";
+import { useState, useEffect, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import ApperIcon from "@/components/ApperIcon";
 import Button from "@/components/atoms/Button";
 import Badge from "@/components/atoms/Badge";
+import { AuthContext } from "../../App";
+import favoriteService from "@/services/api/favoriteService";
+import comparisonService from "@/services/api/comparisonService";
 
-const Header = ({ favoritesCount = 0, comparisonCount = 0 }) => {
+const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [favoritesCount, setFavoritesCount] = useState(0);
+  const [comparisonCount, setComparisonCount] = useState(0);
   const navigate = useNavigate();
+  const { logout } = useContext(AuthContext);
+
+  useEffect(() => {
+    loadCounts();
+    const interval = setInterval(loadCounts, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadCounts = async () => {
+    try {
+      const [favorites, comparison] = await Promise.all([
+        favoriteService.getAll(),
+        comparisonService.getAll()
+      ]);
+      setFavoritesCount(favorites.length);
+      setComparisonCount(comparison.length);
+    } catch (err) {
+      console.error("Failed to load counts:", err);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+  };
 
   const navItems = [
     { label: "Browse", path: "/", icon: "Home" },
@@ -31,7 +60,7 @@ const Header = ({ favoritesCount = 0, comparisonCount = 0 }) => {
             </div>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-2">
+<nav className="hidden md:flex items-center gap-2">
             {navItems.map((item) => (
               <Link key={item.path} to={item.path}>
                 <Button variant="ghost" className="relative">
@@ -45,6 +74,10 @@ const Header = ({ favoritesCount = 0, comparisonCount = 0 }) => {
                 </Button>
               </Link>
             ))}
+            <Button variant="ghost" onClick={handleLogout}>
+              <ApperIcon name="LogOut" size={20} />
+              Logout
+            </Button>
           </nav>
 
           <button
@@ -63,7 +96,7 @@ const Header = ({ favoritesCount = 0, comparisonCount = 0 }) => {
           exit={{ opacity: 0, y: -20 }}
           className="md:hidden border-t border-gray-200 bg-white"
         >
-          <nav className="px-4 py-4 space-y-2">
+<nav className="px-4 py-4 space-y-2">
             {navItems.map((item) => (
               <Link
                 key={item.path}
@@ -80,6 +113,16 @@ const Header = ({ favoritesCount = 0, comparisonCount = 0 }) => {
                 )}
               </Link>
             ))}
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                handleLogout();
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-lg transition-colors"
+            >
+              <ApperIcon name="LogOut" size={20} className="text-primary" />
+              <span className="font-medium">Logout</span>
+            </button>
           </nav>
         </motion.div>
       )}

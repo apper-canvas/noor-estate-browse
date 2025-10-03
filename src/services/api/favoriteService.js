@@ -1,41 +1,118 @@
-const FAVORITES_KEY = "estate_browse_favorites";
-
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const favoriteService = {
   async getAll() {
     await delay(200);
-    const stored = localStorage.getItem(FAVORITES_KEY);
-    return stored ? JSON.parse(stored) : [];
+    try {
+      const { ApperClient } = window.ApperSDK;
+      const apperClient = new ApperClient({
+        apperProjectId: import.meta.env.VITE_APPER_PROJECT_ID,
+        apperPublicKey: import.meta.env.VITE_APPER_PUBLIC_KEY
+      });
+
+      const params = {
+        fields: [
+          {"field": {"Name": "Id"}},
+          {"field": {"Name": "property_id_c"}}
+        ]
+      };
+
+      const response = await apperClient.fetchRecords('favorite_c', params);
+      
+      if (!response?.data?.length) {
+        return [];
+      }
+
+      return response.data.map(f => f.property_id_c);
+    } catch (error) {
+      console.error("Error fetching favorites:", error?.response?.data?.message || error);
+      return [];
+    }
   },
 
   async add(propertyId) {
     await delay(150);
-    const favorites = await this.getAll();
-    if (!favorites.includes(propertyId)) {
-      favorites.push(propertyId);
-      localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+    try {
+      const favorites = await this.getAll();
+      
+      if (favorites.includes(propertyId)) {
+        return favorites;
+      }
+
+      const { ApperClient } = window.ApperSDK;
+      const apperClient = new ApperClient({
+        apperProjectId: import.meta.env.VITE_APPER_PROJECT_ID,
+        apperPublicKey: import.meta.env.VITE_APPER_PUBLIC_KEY
+      });
+
+      const params = {
+        records: [{
+          property_id_c: propertyId
+        }]
+      };
+
+      const response = await apperClient.createRecord('favorite_c', params);
+      
+      if (!response.success) {
+        console.error(response.message);
+        throw new Error(response.message);
+      }
+
+      return await this.getAll();
+    } catch (error) {
+      console.error("Error adding favorite:", error?.response?.data?.message || error);
+      throw error;
     }
-    return favorites;
   },
 
   async remove(propertyId) {
     await delay(150);
-    const favorites = await this.getAll();
-    const updated = favorites.filter(id => id !== propertyId);
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(updated));
-    return updated;
+    try {
+      const { ApperClient } = window.ApperSDK;
+      const apperClient = new ApperClient({
+        apperProjectId: import.meta.env.VITE_APPER_PROJECT_ID,
+        apperPublicKey: import.meta.env.VITE_APPER_PUBLIC_KEY
+      });
+
+      const allParams = {
+        fields: [
+          {"field": {"Name": "Id"}},
+          {"field": {"Name": "property_id_c"}}
+        ],
+        where: [{"FieldName": "property_id_c", "Operator": "EqualTo", "Values": [propertyId]}]
+      };
+
+      const allResponse = await apperClient.fetchRecords('favorite_c', allParams);
+      
+      if (allResponse?.data?.length > 0) {
+        const favoriteRecord = allResponse.data[0];
+        const deleteParams = {
+          RecordIds: [favoriteRecord.Id]
+        };
+        await apperClient.deleteRecord('favorite_c', deleteParams);
+      }
+
+      return await this.getAll();
+    } catch (error) {
+      console.error("Error removing favorite:", error?.response?.data?.message || error);
+      throw error;
+    }
   },
 
   async toggle(propertyId) {
     await delay(150);
-    const favorites = await this.getAll();
-    const isFavorite = favorites.includes(propertyId);
-    
-    if (isFavorite) {
-      return await this.remove(propertyId);
-    } else {
-      return await this.add(propertyId);
+    try {
+      const favorites = await this.getAll();
+      const isFavorite = favorites.includes(propertyId);
+      
+      if (isFavorite) {
+        return await this.remove(propertyId);
+      } else {
+        return await this.add(propertyId);
+      }
+    } catch (error) {
+      console.error("Error toggling favorite:", error?.response?.data?.message || error);
+      throw error;
     }
   },
 
@@ -44,5 +121,7 @@ const favoriteService = {
     return favorites.includes(propertyId);
   }
 };
+
+export default favoriteService;
 
 export default favoriteService;
